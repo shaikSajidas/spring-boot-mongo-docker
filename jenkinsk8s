@@ -1,0 +1,47 @@
+pipeline {
+     agent any
+     stages {
+         stage ('cloning the repo') {
+             steps {
+                 git changelog: false, poll: false, url: 'https://github.com/shaikSajidas/spring-boot-mongo-docker.git'
+             }
+         }
+     stage(" Maven Clean Package"){
+      def mavenHome =  tool name: "Maven-3.6.1", type: "maven"
+      def mavenCMD = "${mavenHome}/bin/mvn"
+      sh "${mavenCMD} clean package"
+      
+    }
+ 
+    stage('Build Docker Image'){
+        sh 'docker build -t dockerhandson/spring-boot-mongo .'
+    }
+    
+    stage('Push Docker Image'){
+        withCredentials([string(credentialsId: 'DOKCER_HUB_PASSWORD', variable: 'DOKCER_HUB_PASSWORD')]) {
+          sh "docker login -u dockerhandson -p ${DOKCER_HUB_PASSWORD}"
+        }
+        sh 'docker push dockerhandson/spring-boot-mongo'
+     }
+
+
+     stage ('kubernets deploy') {
+            steps {
+                withCredentials([file(credentialsId: 'k8s_config', variable: 'credentialsId')]) {
+                   sh "kubectl apply -f pod.yml"
+                } 
+                
+            }
+        }
+     stage("Deploy To Kuberates Cluster"){
+       kubernetesDeploy(
+         configs: 'springBootMongo.yml', 
+         kubeconfigId: 'KUBERNATES_CONFIG',
+         enableConfigSubstitution: true
+        )
+     }
+
+  }
+
+
+}
